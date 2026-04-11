@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KOLANDER // ENERGY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #0b0d0f;
+      --surface:  #111417;
+      --border:   #1e2328;
+      --border2:  #262c33;
+      --text:     #c8d0d8;
+      --dim:      #5a6470;
+      --accent:   #e8b44a;
+      --accent2:  #4ab8e8;
+      --danger:   #e8604a;
+      --good:     #4ae8a0;
+      --mono:     'Share Tech Mono', monospace;
+      --sans:     'Barlow', sans-serif;
+      --cond:     'Barlow Condensed', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 39px, var(--border) 39px, var(--border) 40px),
+        repeating-linear-gradient(90deg, transparent, transparent 39px, var(--border) 39px, var(--border) 40px);
+      background-size: 40px 40px;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* ---- HEADER ---- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 0 24px;
+      border-bottom: 1px solid var(--border2);
+      margin-bottom: 32px;
+    }
+
+    .logo {
+      font-family: var(--cond);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .logo span { color: var(--dim); font-weight: 300; }
+
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--good);
+      letter-spacing: 0.08em;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 6px var(--good);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .clock {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    /* ---- STAT CARDS ---- */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: var(--border2);
+    }
+    .card.accent::before { background: var(--accent); }
+    .card.blue::before   { background: var(--accent2); }
+    .card.good::before   { background: var(--good); }
+    .card.danger::before { background: var(--danger); }
+
+    .card-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .card-value {
+      font-family: var(--cond);
+      font-size: 42px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.01em;
+    }
+    .card-value .unit {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--dim);
+      margin-left: 3px;
+      letter-spacing: 0;
+    }
+
+    .card-sub {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 6px;
+    }
+
+    /* ---- CHARTS ---- */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 760px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      padding: 22px 22px 18px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 18px;
+    }
+
+    .panel-title {
+      font-family: var(--cond);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .panel-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim);
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 220px;
+    }
+
+    /* ---- COST TABLE ---- */
+    .cost-panel {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead th {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--dim);
+      text-transform: uppercase;
+      text-align: left;
+      padding: 0 0 12px;
+      border-bottom: 1px solid var(--border2);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td {
+      padding: 11px 0;
+      color: var(--text);
+    }
+    tbody td.num {
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    tbody td.highlight { color: var(--accent); font-weight: 600; }
+
+    /* ---- FOOTER ---- */
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 0.06em;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .loading {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 0.08em;
+      padding: 40px 0;
+      text-align: center;
+    }
+
+    /* ---- RANGE TABS ---- */
+    .tabs {
+      display: flex;
+      gap: 2px;
+    }
+    .tab {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--dim);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab.active, .tab:hover {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">KOLANDER <span>//</span> ENERGY</div>
+    <div style="display:flex;align-items:center;gap:24px;">
+      <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <div class="stats-row" id="stats-row">
+    <div class="loading">FETCHING DATA...</div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Today — Hourly kW</div>
+        <div class="panel-meta" id="today-date">--</div>
+      </div>
+      <div class="chart-wrap"><canvas id="hourlyChart"></canvas></div>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Daily kWh History</div>
+        <div class="tabs">
+          <button class="tab active" onclick="loadHistory(7, this)">7D</button>
+          <button class="tab" onclick="loadHistory(30, this)">30D</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="cost-panel">
+    <div class="panel-header">
+      <div class="panel-title">Cost Breakdown</div>
+      <div class="panel-meta" id="rate-note">--</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Usage (kWh)</th>
+          <th>Cost</th>
+          <th>vs Avg</th>
+        </tr>
+      </thead>
+      <tbody id="cost-tbody">
+        <tr><td colspan="4" class="loading">--</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <span>KOLANDER // HOME ENERGY MONITOR</span>
+    <span id="last-refresh">LAST REFRESH: --</span>
+  </footer>
+
+</div>
+
+<script>
+  // ---- Clock ----
+  function tick() {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ---- Chart defaults ----
+  Chart.defaults.color = '#5a6470';
+  Chart.defaults.borderColor = '#1e2328';
+  Chart.defaults.font.family = "'Share Tech Mono', monospace";
+  Chart.defaults.font.size = 11;
+
+  let hourlyChart = null;
+  let historyChart = null;
+
+  // ---- Stats ----
+  async function loadStats() {
+    const res = await fetch('/api/stats');
+    const d = await res.json();
+
+    document.getElementById('stats-row').innerHTML = `
+      <div class="card accent">
+        <div class="card-label">Current Draw</div>
+        <div class="card-value">${d.currentKw}<span class="unit">kW</span></div>
+        <div class="card-sub">Live reading</div>
+      </div>
+      <div class="card blue">
+        <div class="card-label">Today Usage</div>
+        <div class="card-value">${d.todayKwh}<span class="unit">kWh</span></div>
+        <div class="card-sub">$${d.todayCost.toFixed(2)} today</div>
+      </div>
+      <div class="card good">
+        <div class="card-label">This Month</div>
+        <div class="card-value">${d.monthKwh}<span class="unit">kWh</span></div>
+        <div class="card-sub">$${d.monthCost.toFixed(2)} so far</div>
+      </div>
+      <div class="card danger">
+        <div class="card-label">Projected Month</div>
+        <div class="card-value">${d.projectedMonthKwh}<span class="unit">kWh</span></div>
+        <div class="card-sub">~$${d.projectedMonthCost.toFixed(2)} est.</div>
+      </div>
+    `;
+
+    document.getElementById('rate-note').textContent = `@ $${d.ratePerKwh}/kWh`;
+
+    document.getElementById('cost-tbody').innerHTML = `
+      <tr>
+        <td>Today</td>
+        <td class="num">${d.todayKwh}</td>
+        <td class="num highlight">$${d.todayCost.toFixed(2)}</td>
+        <td class="num" style="color:var(--dim)">—</td>
+      </tr>
+      <tr>
+        <td>Daily Average (30d)</td>
+        <td class="num">${d.avgDailyKwh}</td>
+        <td class="num">$${(d.avgDailyKwh * d.ratePerKwh).toFixed(2)}</td>
+        <td class="num" style="color:var(--dim)">baseline</td>
+      </tr>
+      <tr>
+        <td>This Month (so far)</td>
+        <td class="num">${d.monthKwh}</td>
+        <td class="num highlight">$${d.monthCost.toFixed(2)}</td>
+        <td class="num" style="color:var(--accent2)">—</td>
+      </tr>
+      <tr>
+        <td>Projected Month</td>
+        <td class="num">${d.projectedMonthKwh}</td>
+        <td class="num highlight">$${d.projectedMonthCost.toFixed(2)}</td>
+        <td class="num" style="color:var(--dim)">est.</td>
+      </tr>
+    `;
+
+    document.getElementById('last-refresh').textContent =
+      'LAST REFRESH: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+  }
+
+  // ---- Hourly Chart ----
+  async function loadHourly() {
+    const res = await fetch('/api/hourly');
+    const data = await res.json();
+
+    const labels = data.map(h => h.label);
+    const values = data.map(h => h.kw);
+
+    document.getElementById('today-date').textContent =
+      new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+    if (hourlyChart) hourlyChart.destroy();
+    hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'kW',
+          data: values,
+          backgroundColor: values.map(v => v > 3 ? 'rgba(232,96,74,0.7)' : 'rgba(232,180,74,0.6)'),
+          borderColor:     values.map(v => v > 3 ? '#e8604a' : '#e8b44a'),
+          borderWidth: 1,
+          borderRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#1a1e23' } },
+          y: { grid: { color: '#1a1e23' }, beginAtZero: true,
+               ticks: { callback: v => v + ' kW' } }
+        }
+      }
+    });
+  }
+
+  // ---- History Chart ----
+  async function loadHistory(days = 30, btn = null) {
+    if (btn) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    const res = await fetch(`/api/history?days=${days}`);
+    const data = await res.json();
+
+    const labels = data.map(d => {
+      const [,m,dd] = d.date.split('-');
+      return `${m}/${dd}`;
+    });
+    const values = data.map(d => d.kwh);
+    const avg = values.reduce((a,b) => a+b, 0) / values.length;
+
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(document.getElementById('historyChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'kWh',
+            data: values,
+            borderColor: '#4ab8e8',
+            backgroundColor: 'rgba(74,184,232,0.08)',
+            borderWidth: 2,
+            pointRadius: days <= 7 ? 4 : 2,
+            pointBackgroundColor: '#4ab8e8',
+            tension: 0.3,
+            fill: true,
+          },
+          {
+            label: 'Avg',
+            data: values.map(() => parseFloat(avg.toFixed(1))),
+            borderColor: 'rgba(232,180,74,0.4)',
+            borderWidth: 1,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#1a1e23' },
+               ticks: { maxTicksLimit: days <= 7 ? 7 : 10 } },
+          y: { grid: { color: '#1a1e23' }, beginAtZero: false,
+               ticks: { callback: v => v + ' kWh' } }
+        }
+      }
+    });
+  }
+
+  // ---- Init ----
+  async function init() {
+    await Promise.all([loadStats(), loadHourly(), loadHistory(30)]);
+  }
+
+  init();
+  setInterval(loadStats, 30000);   // refresh stats every 30s
+  setInterval(loadHourly, 60000);  // refresh hourly chart every 60s
+</script>
+</body>
+</html>
