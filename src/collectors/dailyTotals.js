@@ -44,9 +44,11 @@ async function collectDailyTotals() {
 
   // --- Emporia ---
   if (emporia.isConfigured()) {
+    console.log('[Collector:daily] Fetching Emporia daily history...');
     try {
       const history = await emporia.fetchDailyHistory(2); // today + yesterday
       const todayEntry = history.find(d => d.date === today);
+      console.log(history, todayEntry);
       if (todayEntry) {
         result.emporia_kwh = todayEntry.kwh;
         result.sources.emporia = 'live';

@@ -3,49 +3,52 @@
  * Pulls circuit-level energy data from your Emporia Vue monitor
  * via the unofficial cloud API (emporia-vue-lib).
  *
- * SETUP REQUIRED:
- *  1. npm install emporia-vue-lib  (already in package.json if you used the updated one)
- *  2. Add to .env:
- *       EMPORIA_EMAIL=your@email.com
- *       EMPORIA_PASSWORD=yourpassword
- *       EMPORIA_TOKEN_FILE=./emporia_tokens.json   (optional — tokens cached here)
- *
- * DATA AVAILABLE:
- *  - Total house consumption (kW, kWh)
- *  - Per-circuit breakdown if you have the 8/16-circuit Vue 2
- *  - Historical usage at minute, hour, day granularity
- *
- * NOTE: This uses the unofficial Emporia API. It authenticates with AWS Cognito
- * under the hood (same as the mobile app). Emporia has acknowledged this exists
- * but doesn't officially support it. Tokens are refreshed automatically.
+ * SETUP:
+ *   EMPORIA_EMAIL=your@email.com
+ *   EMPORIA_PASSWORD=yourpassword
  */
 
 let EmporiaVue, Scale, Unit;
 try {
   ({ EmporiaVue, Scale, Unit } = require('emporia-vue-lib'));
 } catch {
-  // Library not installed yet — connector will report unconfigured
+  // Library not installed
 }
 
-const EMAIL    = process.env.EMPORIA_EMAIL    || null;
-const PASSWORD = process.env.EMPORIA_PASSWORD || null;
+const EMAIL      = process.env.EMPORIA_EMAIL    || null;
+const PASSWORD   = process.env.EMPORIA_PASSWORD || null;
 const TOKEN_FILE = process.env.EMPORIA_TOKEN_FILE || './emporia_tokens.json';
 
-let _client = null;
-let _devices = null;
+let _client      = null;
+let _loginPromise = null; // singleton — prevents concurrent login races
+let _devices     = null;
 
-// Cache — Emporia API is cloud-based so we poll conservatively
 let _cache = { circuits: [], totalKw: null, ts: 0 };
-const CACHE_TTL_MS = 60_000; // refresh every 60s max
+const CACHE_TTL_MS = 60_000;
 
 async function getClient() {
   if (_client) return _client;
-  if (!EmporiaVue) throw new Error('emporia-vue-lib not installed — run: npm install emporia-vue-lib');
+
+  // If login is already in progress, wait for that same promise
+  if (_loginPromise) return _loginPromise;
+
+  if (!EmporiaVue) throw new Error('emporia-vue-lib not installed');
   if (!EMAIL || !PASSWORD) throw new Error('EMPORIA_EMAIL / EMPORIA_PASSWORD not set in .env');
 
-  _client = new EmporiaVue();
-  await _client.login({ username: EMAIL, password: PASSWORD, tokenStorageFile: TOKEN_FILE });
-  return _client;
+  _loginPromise = (async () => {
+    console.log('[Emporia] Logging in...');
+    const vue = new EmporiaVue();
+    await vue.login({ username: EMAIL, password: PASSWORD, tokenStorageFile: TOKEN_FILE });
+    _client = vue;
+    return _client;
+  })();
+
+  try {
+    return await _loginPromise;
+  } catch (err) {
+    _loginPromise = null; // reset so next call retries
+    throw err;
+  }
 }
 
 async function getDevices() {
@@ -55,44 +58,48 @@ async function getDevices() {
   return _devices;
 }
 
-/**
- * Returns current power draw broken down by circuit.
- * Each entry: { name, kw, channelNum, deviceGid }
- */
 async function fetchCircuitUsage() {
   const now = Date.now();
   if (_cache.totalKw !== null && now - _cache.ts < CACHE_TTL_MS) return _cache;
 
-  const client = await getClient();
+  const client  = await getClient();
   const devices = await getDevices();
   const deviceGids = devices.map(d => d.deviceGid.toString());
 
-  // Scale.MINUTE gives us kWh over the last minute → multiply by 60 to get kW
   const usageData = await client.getDeviceListUsage(
     deviceGids,
-    undefined,       // current time
+    undefined,
     Scale.MINUTE,
     Unit.KWH
   );
+
+  for (const [deviceGid, device] of Object.entries(usageData)) {
+    console.log(`Device ${deviceGid} (${device.name}):`);
+    for (const [channelNum, channel] of Object.entries(device.deviceUsages)) {
+      console.log(`Device ${deviceGid}, Channel ${channelNum}: ${channel.usage} kWh`);
+    }
+  }
+
+  console.log('[Emporia] Raw usage data:', usageData[channelUsages]);
 
   const circuits = [];
   let totalKw = 0;
 
   for (const [, device] of Object.entries(usageData)) {
     for (const [channelNum, channel] of Object.entries(device.channels)) {
+      const kw = parseFloat(((channel.usage || 0) * 60).toFixed(3));
+      console.log(`Device ${device.deviceGid} Channel ${channelNum} (${channel.name}): ${kw} kW`);
       if (channelNum === '1,2,3') {
-        // This is the "Main" / whole-home channel — use as total
-        const kw = parseFloat(((channel.usage || 0) * 60).toFixed(3));
         totalKw = kw;
         circuits.unshift({ name: channel.name || 'Main', kw, channelNum, isMain: true });
       } else if (channel.usage > 0) {
-        const kw = parseFloat(((channel.usage || 0) * 60).toFixed(3));
         circuits.push({ name: channel.name || `Circuit ${channelNum}`, kw, channelNum, isMain: false });
       }
     }
   }
 
-  // Sort non-main circuits by draw descending
+  console.log('[Emporia] Fetched circuit usage:', circuits, 'Total kW:', totalKw);
+
   const [main, ...rest] = circuits;
   const sorted = [main, ...rest.sort((a, b) => b.kw - a.kw)].filter(Boolean);
 
@@ -100,71 +107,84 @@ async function fetchCircuitUsage() {
   return _cache;
 }
 
-/**
- * Hourly usage for today, in kWh per hour.
- * Returns array of { hour, label, kwh }
- */
 async function fetchHourlyToday() {
-  const client = await getClient();
+  const client  = await getClient();
   const devices = await getDevices();
+
   if (!devices.length) return [];
 
-  const mainDevice = devices[0];
-  const mainChannel = mainDevice.channels?.find(c => c.channelNum === '1,2,3') || mainDevice.channels?.[0];
+  const mainChannel = devices[0].channels?.find(c => c.channelNum === '1,2,3') || devices[0].channels?.[0];
   if (!mainChannel) return [];
 
-  const now = new Date();
+  const now   = new Date();
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
 
-  const usageOverTime = await client.getUsageOverTime(
-    mainChannel,
-    start,
-    now,
-    Scale.HOUR,
+  // const usageOverTime = await client.getUsageOverTime(mainChannel, start, now, Scale.HOUR, Unit.KWH);
+
+  // return (usageOverTime || []).map((kwh, i) => ({
+  //   hour: i,
+  //   label: `${String(i).padStart(2, '0')}:00`,
+  //   kwh: parseFloat((kwh || 0).toFixed(2)),
+  // }));
+    const deviceGids = devices.map(d => d.deviceGid.toString());
+  const usageData = await client.getDeviceListUsage(
+    deviceGids,
+    undefined, // current time
+    Scale.MINUTE,
     Unit.KWH
   );
-
-  return (usageOverTime || []).map((kwh, i) => ({
+  return (usageData || []).map((kwh, i) => ({
     hour: i,
-    label: `${i.toString().padStart(2, '0')}:00`,
+    label: `${String(i).padStart(2, '0')}:00`,
     kwh: parseFloat((kwh || 0).toFixed(2)),
   }));
 }
 
-/**
- * Daily totals for the past N days, in kWh.
- * Returns array of { date, kwh }
- */
 async function fetchDailyHistory(days = 30) {
-  const client = await getClient();
+  const client  = await getClient();
   const devices = await getDevices();
   if (!devices.length) return [];
 
-  const mainDevice = devices[0];
-  const mainChannel = mainDevice.channels?.find(c => c.channelNum === '1,2,3') || mainDevice.channels?.[0];
+  const mainChannel = devices[0].channels?.find(c => c.channelNum === '1,2,3') || devices[0].channels?.[0];
   if (!mainChannel) return [];
 
-  const now = new Date();
+  const now   = new Date();
   const start = new Date(now);
   start.setDate(start.getDate() - days);
 
-  const usageOverTime = await client.getUsageOverTime(
-    mainChannel,
-    start,
-    now,
-    Scale.DAY,
+  // const usageOverTime = await client.getUsageOverTime(mainChannel, start, now, Scale.DAY, Unit.KWH);
+
+  // return (usageOverTime || []).map((kwh, i) => {
+  //   const d = new Date(start);
+  //   d.setDate(d.getDate() + i);
+  //   return {
+  //     date: d.toISOString().split('T')[0],
+  //     kwh: parseFloat((kwh || 0).toFixed(1)),
+  //   };
+  // });
+      const deviceGids = devices.map(d => d.deviceGid.toString());
+  const usageData = await client.getDeviceListUsage(
+    deviceGids,
+    undefined, // current time
+    Scale.MINUTE,
     Unit.KWH
   );
+  //console.log(usageData);
 
-  return (usageOverTime || []).map((kwh, i) => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    return {
-      date: d.toISOString().split('T')[0],
-      kwh: parseFloat((kwh || 0).toFixed(1)),
-    };
-  });
+    for (const [gid, device] of Object.entries(usageData)) {
+      for (const [channelNum, channel] of Object.entries(device.channels)) {
+        console.log(`${gid} ${channelNum} ${channel.name} ${channel.usage} kwh`);
+      }
+    }
+  // return(usageData || []).map((kwh, i) => {
+  //   const d = new Date(start);
+  //   d.setDate(d.getDate() + i);
+  //   return {
+  //     date: d.toISOString().split('T')[0],
+  //     kwh: parseFloat((kwh || 0).toFixed(1)),
+  //   };
+  // });
 }
 
 function isConfigured() {
