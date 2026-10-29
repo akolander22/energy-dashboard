@@ -1,5 +1,4 @@
 node_modules/
+data/
 .env
-certs/
-emporia_tokens.json
-*.log
+.DS_Store

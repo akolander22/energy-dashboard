@@ -1,159 +1,60 @@
-/**
- * APSYSTEMS EMA CONNECTOR (Everlight Solar)
- * Fetches solar production data from APsystems EMA cloud API.
- * Everlight installs APsystems microinverters and uses EMA for monitoring.
- *
- * SETUP REQUIRED:
- *  1. Open the APsystems EMA app (or apsystemsema.com)
- *  2. Find your ECU ID:
- *       App → select your system → top of screen shows "ECU ID: XXXXXXXXXX"
- *       OR: Settings → ECU Information
- *  3. Add to .env:
- *       APSYSTEMS_ECU_ID=your_ecu_id_here
- *       APSYSTEMS_SYSTEM_ID=your_system_id   (optional — for account-level data)
- *
- * NOTE: APsystems does not publish an official API. This uses the same endpoint
- * their mobile app hits. It has been stable for years but is not guaranteed.
- * No authentication is required for the ECU power endpoint (only ECU ID needed).
- */
+// APSystems solar inverter — supports local ECU LAN API or cloud EMA API
+// Local ECU: set APSYSTEMS_ECU_IP (faster, no auth needed)
+// Cloud EMA: set APSYSTEMS_ECU_ID + APSYSTEMS_API_KEY
 
-const http = require('http');
-
-const ECU_ID    = process.env.APSYSTEMS_ECU_ID    || null;
-const API_HOST  = 'api.apsystemsema.com';
-const API_PORT  = 8073;
-const BASE_PATH = '/apsema/v1/ecu';
-
-// Cache — EMA updates every ~5 minutes, so no need to hammer it
-let _todayCache  = { data: null, date: null };
-let _powerCache  = { watts: null, ts: 0 };
-const POWER_CACHE_TTL_MS = 300_000; // 5 minutes
-
-/**
- * Fetch today's solar production as a time-series array.
- * Returns: { times: ['HH:MM', ...], power: [watts, ...], totalWh: number }
- */
-async function fetchTodayProduction() {
-  if (!ECU_ID) throw new Error('APSYSTEMS_ECU_ID not set in .env');
-
-  const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-  const cacheDate = _todayCache.date;
-
-  // Return cache if it's still today's data and we fetched recently
-  if (cacheDate === today && _todayCache.data) return _todayCache.data;
-
-  const raw = await emaPost(`${BASE_PATH}/getPowerInfo`, {
-    ecuId: ECU_ID,
-    filter: 'power',
-    date: today,
-  });
-
-  const parsed = JSON.parse(raw);
-  const dataBlock = parsed?.data || {};
-
-  const times = dataBlock.time  || [];
-  const power = (dataBlock.power || []).map(w => parseFloat(w) || 0);
-
-  // Approximate total Wh: sum of (watts × interval in hours)
-  // EMA typically returns data in 5-minute intervals
-  const intervalHours = times.length > 1 ? 5 / 60 : 1;
-  const totalWh = power.reduce((s, w) => s + w * intervalHours, 0);
-
-  const result = { times, power, totalWh: parseFloat(totalWh.toFixed(0)) };
-  _todayCache = { data: result, date: today };
-  return result;
-}
-
-/**
- * Returns the most recent solar power output in watts.
- */
-async function fetchCurrentWatts() {
-  const now = Date.now();
-  if (_powerCache.watts !== null && now - _powerCache.ts < POWER_CACHE_TTL_MS) {
-    return _powerCache.watts;
-  }
-
-  const { power } = await fetchTodayProduction();
-  const latest = power.length ? power[power.length - 1] : 0;
-  _powerCache = { watts: latest, ts: now };
-  return latest;
-}
-
-/**
- * Monthly production summary (kWh per day for the past N months).
- * Uses the getMonthlyEnergy endpoint.
- */
-async function fetchMonthlyHistory(months = 3) {
-  if (!ECU_ID) throw new Error('APSYSTEMS_ECU_ID not set in .env');
-
-  const results = [];
-  const now = new Date();
-
-  for (let m = months - 1; m >= 0; m--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
-    const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-    try {
-      const raw = await emaPost(`${BASE_PATH}/getMonthlyEnergy`, {
-        ecuId: ECU_ID,
-        date: ym,
-      });
-      const parsed = JSON.parse(raw);
-      const days   = parsed?.data?.day   || [];
-      const energy = parsed?.data?.energy || [];
-
-      days.forEach((day, i) => {
-        results.push({
-          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-          kwh: parseFloat(((energy[i] || 0) / 1000).toFixed(2)), // Wh → kWh
-        });
-      });
-    } catch (err) {
-      console.warn(`[APSystems] Could not fetch month ${ym}:`, err.message);
-    }
-  }
-
-  return results;
-}
-
-function emaPost(path, params) {
-  return new Promise((resolve, reject) => {
-    const body = Object.entries(params)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join('&');
-
-    const opts = {
-      hostname: API_HOST,
-      port: API_PORT,
-      path,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(body),
-      },
-    };
-
-    const req = http.request(opts, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`APSystems API returned ${res.statusCode}: ${data}`));
-        } else {
-          resolve(data);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(10_000, () => { req.destroy(); reject(new Error('APSystems request timed out')); });
-    req.write(body);
-    req.end();
-  });
-}
+const ECU_IP   = process.env.APSYSTEMS_ECU_IP;
+const ECU_ID   = process.env.APSYSTEMS_ECU_ID;
+const API_KEY  = process.env.APSYSTEMS_API_KEY;
+const CLOUD    = 'https://api.apsystemsema.com:8073/apsema/v1/ecu/getPowerInfo';
 
 function isConfigured() {
-  return !!ECU_ID;
+  return !!(ECU_IP || (ECU_ID && API_KEY));
 }
 
-module.exports = { fetchTodayProduction, fetchCurrentWatts, fetchMonthlyHistory, isConfigured };
+// 30-second cache — current watts and today's Wh are fetched together
+let apCache   = null;
+let apCacheAt = 0;
+
+async function fetchData() {
+  if (apCache && Date.now() - apCacheAt < 30_000) return apCache;
+
+  let raw;
+  if (ECU_IP) {
+    const res = await fetch(`http://${ECU_IP}/index.php/realtimedata`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    raw = await res.json();
+    const d = raw.data ?? raw;
+    apCache = {
+      currentWatts: parseFloat(d.current_power ?? 0),
+      // Local ECU returns today_energy in kWh; convert to Wh for consistency
+      todayWh: parseFloat(d.today_energy ?? 0) * 1000,
+    };
+  } else if (ECU_ID && API_KEY) {
+    const res = await fetch(`${CLOUD}?ecuId=${ECU_ID}`, {
+      headers: { Authorization: API_KEY },
+      signal:  AbortSignal.timeout(8000),
+    });
+    raw = await res.json();
+    const d = raw.data ?? {};
+    apCache = {
+      currentWatts: parseFloat(d.current_power ?? 0),
+      todayWh:      parseFloat(d.today_energy  ?? 0),
+    };
+  } else {
+    return { currentWatts: 0, todayWh: 0 };
+  }
+
+  apCacheAt = Date.now();
+  return apCache;
+}
+
+async function fetchCurrentWatts() {
+  return (await fetchData()).currentWatts;
+}
+
+async function fetchTodayWh() {
+  return (await fetchData()).todayWh;
+}
+
+module.exports = { isConfigured, fetchCurrentWatts, fetchTodayWh };

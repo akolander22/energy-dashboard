@@ -1,100 +1,42 @@
 const express = require('express');
 const router  = express.Router();
+const db      = require('../db');
+const emporia = require('../connectors/emporia');
 
-const emporia        = require('../connectors/emporia');
-const Circuit        = require('../db/models/Circuit');
-const CircuitReading = require('../db/models/CircuitReading');
+async function safeCall(fn, fallback, label) {
+  try { return await fn(); }
+  catch (err) { console.warn(`[${label}]`, err.message); return fallback; }
+}
 
-// GET /api/circuits — current live circuit snapshot + registry
+// GET /api/circuits — live circuit breakdown
 router.get('/', async (req, res) => {
-  // Live snapshot from Emporia if available
-  let live = null;
-  if (emporia.isConfigured()) {
-    try {
-      const data = await emporia.fetchCircuitUsage();
-      live = data.circuits;
-    } catch (err) {
-      console.warn('[routes/circuits] Live fetch failed:', err.message);
-    }
+  const usage = await safeCall(() => emporia.getInstantUsage(), null, 'Emporia-circuits');
+  if (!usage) {
+    return res.json({ live: [], summary: { total_kw: 0, monitored_pct: 0 } });
   }
+  res.json({ live: usage.circuits, summary: usage.summary });
+});
 
-  // Registry with averages from Mongo
-  const registry = await Circuit.find().sort({ is_active: -1, avg_kw: -1 }).lean();
+// GET /api/circuits/averages — 7-day averages from stored snapshots
+router.get('/averages', (req, res) => {
+  const rows = db.prepare(`
+    SELECT channel_num, name,
+           ROUND(AVG(kw), 3) AS avg_kw,
+           COUNT(*)          AS reading_count
+    FROM   circuit_snapshots
+    WHERE  recorded_at >= datetime('now', '-7 days')
+    GROUP  BY channel_num
+    ORDER  BY avg_kw DESC
+  `).all();
 
-  // Compute unknown draw from latest snapshot
-  const main = live?.find(c => c.isMain);
-  const monitoredSum = live?.filter(c => !c.isMain).reduce((s, c) => s + c.kw, 0) ?? null;
-  const unknown = (main && monitoredSum !== null)
-    ? parseFloat((main.kw - monitoredSum).toFixed(3))
-    : null;
+  const main = rows.find(r => r.channel_num === '1,2,3');
+  const subs = rows.filter(r => r.channel_num !== '1,2,3' && r.channel_num !== 'Balance');
 
   res.json({
-    live,          // current kW per circuit (null if Emporia not configured)
-    registry,      // all known circuits with averages
-    summary: {
-      total_kw:     main?.kw ?? null,
-      monitored_kw: monitoredSum,
-      unknown_kw:   unknown,
-      monitored_pct: (main && monitoredSum !== null)
-        ? parseFloat(((monitoredSum / main.kw) * 100).toFixed(1))
-        : null,
-    },
+    circuits:               rows,
+    main_avg_kw:            main?.avg_kw ?? null,
+    total_monitored_avg_kw: parseFloat(subs.reduce((s, r) => s + (r.avg_kw ?? 0), 0).toFixed(3)),
   });
-});
-
-// GET /api/circuits/:channelNum/history?hours=24
-// Time-series readings for a specific circuit
-router.get('/:channelNum/history', async (req, res) => {
-  const hours = parseInt(req.query.hours) || 24;
-  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-
-  const readings = await CircuitReading.find({
-    channel_num: req.params.channelNum,
-    timestamp:   { $gte: since },
-  }).sort({ timestamp: 1 }).lean();
-
-  res.json(readings);
-});
-
-// GET /api/circuits/averages — all circuits sorted by avg draw
-// Useful for understanding where power goes across rotation cycles
-router.get('/averages', async (req, res) => {
-  const circuits = await Circuit.find({ avg_kw: { $ne: null } })
-    .sort({ avg_kw: -1 })
-    .lean();
-
-  const totalAvg = circuits
-    .filter(c => c.channel_num !== '1,2,3')
-    .reduce((s, c) => s + (c.avg_kw || 0), 0);
-
-  const main = circuits.find(c => c.channel_num === '1,2,3');
-
-  res.json({
-    circuits,
-    total_monitored_avg_kw: parseFloat(totalAvg.toFixed(3)),
-    main_avg_kw: main?.avg_kw ?? null,
-    unknown_avg_kw: main?.avg_kw != null
-      ? parseFloat((main.avg_kw - totalAvg).toFixed(3))
-      : null,
-  });
-});
-
-// PATCH /api/circuits/:channelNum — update circuit metadata (name, breaker_number, notes)
-router.patch('/:channelNum', async (req, res) => {
-  const allowed = ['name', 'breaker_number', 'notes'];
-  const updates = {};
-  for (const key of allowed) {
-    if (req.body[key] !== undefined) updates[key] = req.body[key];
-  }
-
-  const circuit = await Circuit.findOneAndUpdate(
-    { channel_num: req.params.channelNum },
-    { $set: updates },
-    { new: true }
-  );
-
-  if (!circuit) return res.status(404).json({ error: 'Circuit not found' });
-  res.json(circuit);
 });
 
 module.exports = router;

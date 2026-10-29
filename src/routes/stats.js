@@ -1,10 +1,9 @@
-const express = require('express');
-const router  = express.Router();
-
+const express   = require('express');
+const router    = express.Router();
+const db        = require('../db');
 const xcel      = require('../connectors/xcel');
 const emporia   = require('../connectors/emporia');
 const apsystems = require('../connectors/apsystems');
-const DailyTotal = require('../db/models/DailyTotal');
 
 const RATE_PER_KWH = parseFloat(process.env.RATE_PER_KWH || '0.13');
 
@@ -15,57 +14,53 @@ async function safeCall(fn, fallback, label) {
 
 // GET /api/stats — live summary cards
 router.get('/', async (req, res) => {
-  const [meterData, circuitData, solarWatts] = await Promise.all([
-    safeCall(() => xcel.fetchMeterReading(), { currentKw: 1.5 }, 'Xcel'),
-    safeCall(() => emporia.fetchCircuitUsage(), { circuits: [], totalKw: 2.4 }, 'Emporia'),
+  const [usage, solarWatts] = await Promise.all([
+    safeCall(() => emporia.getInstantUsage(), null, 'Emporia'),
     safeCall(() => apsystems.fetchCurrentWatts(), 0, 'APSystems'),
   ]);
 
-  const currentKw = meterData.currentKw ?? circuitData.totalKw ?? 0;
+  const currentKw = usage?.totalKw ?? 0;
   const solarKw   = parseFloat((solarWatts / 1000).toFixed(2));
   const netKw     = parseFloat((currentKw - solarKw).toFixed(2));
 
-  // Pull today's stored daily total for cost context
-  const today = new Date().toISOString().split('T')[0];
-  const todayStored = await DailyTotal.findOne({ date: today }).lean();
+  const today       = new Date().toISOString().split('T')[0];
+  const todayStored = db.prepare('SELECT * FROM daily_totals WHERE date = ?').get(today);
 
   res.json({
     currentKw,
     solarKw,
     netKw,
-    todayKwh:   todayStored?.emporia_kwh ?? todayStored?.xcel_daily_kwh ?? null,
-    todayCost:  todayStored?.emporia_kwh
+    todayKwh:   todayStored?.emporia_kwh ?? null,
+    todayCost:  todayStored?.emporia_kwh != null
       ? parseFloat((todayStored.emporia_kwh * RATE_PER_KWH).toFixed(2))
       : null,
     ratePerKwh: RATE_PER_KWH,
     sources: {
-      xcel:      xcel.isConfigured()      ? 'live' : 'placeholder',
-      emporia:   emporia.isConfigured()    ? 'live' : 'placeholder',
-      apsystems: apsystems.isConfigured()  ? 'live' : 'placeholder',
+      xcel:      xcel.isConfigured()     ? 'live' : 'placeholder',
+      emporia:   emporia.isConfigured()   ? 'live' : 'placeholder',
+      apsystems: apsystems.isConfigured() ? 'live' : 'placeholder',
     },
   });
 });
 
-// GET /api/stats/daily?days=30 — stored daily totals from Mongo
-router.get('/daily', async (req, res) => {
-  const days = parseInt(req.query.days) || 30;
+// GET /api/stats/daily?days=30 — stored daily totals
+router.get('/daily', (req, res) => {
+  const days  = parseInt(req.query.days) || 30;
   const since = new Date();
   since.setDate(since.getDate() - days);
   const sinceStr = since.toISOString().split('T')[0];
-
-  const totals = await DailyTotal.find({ date: { $gte: sinceStr } })
-    .sort({ date: 1 })
-    .lean();
-
+  const totals = db.prepare(
+    'SELECT * FROM daily_totals WHERE date >= ? ORDER BY date ASC'
+  ).all(sinceStr);
   res.json(totals);
 });
 
-// GET /api/status — connector health
+// GET /api/stats/status — connector health
 router.get('/status', (req, res) => {
   res.json({
-    xcel:      { configured: xcel.isConfigured(),      label: 'Xcel Itron Meter' },
-    emporia:   { configured: emporia.isConfigured(),    label: 'Emporia Vue' },
-    apsystems: { configured: apsystems.isConfigured(),  label: 'APSystems EMA (Solar)' },
+    xcel:      { configured: xcel.isConfigured(),     label: 'Xcel Itron Meter' },
+    emporia:   { configured: emporia.isConfigured(),   label: 'Emporia Vue' },
+    apsystems: { configured: apsystems.isConfigured(), label: 'APSystems (Solar)' },
   });
 });
 
