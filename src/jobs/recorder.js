@@ -6,11 +6,10 @@ const db        = require('../db');
 const { localDate } = require('../lib/time');
 const emporia   = require('../connectors/emporia');
 const apsystems = require('../connectors/apsystems');
+const { sendAlert } = require('../lib/ntfy');
 
 const POLL_MS        = parseInt(process.env.POLL_INTERVAL_MS   || '300000');  // 5 min
 const ALERT_KW       = parseFloat(process.env.ALERT_KW_THRESHOLD || '0');    // 0 = off
-const NTFY_TOPIC     = process.env.NTFY_TOPIC;
-const NTFY_SERVER    = process.env.NTFY_SERVER || 'https://ntfy.sh';
 const ALERT_COOLDOWN = 30 * 60 * 1000; // don't re-alert within 30 min
 
 const stmtUpsert = db.prepare(`
@@ -35,19 +34,6 @@ const insertSnapshots = db.transaction((circuits) => {
 });
 
 let lastAlertAt = 0;
-
-async function sendAlert(title, body) {
-  if (!NTFY_TOPIC) return;
-  try {
-    await fetch(`${NTFY_SERVER}/${NTFY_TOPIC}`, {
-      method:  'POST',
-      headers: { Title: title, Priority: 'high', Tags: 'warning,electric_plug' },
-      body,
-    });
-  } catch (err) {
-    console.warn('[recorder] ntfy send failed:', err.message);
-  }
-}
 
 async function poll() {
   const today = localDate();
