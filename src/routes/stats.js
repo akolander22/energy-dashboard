@@ -1,6 +1,7 @@
 const express   = require('express');
 const router    = express.Router();
 const db        = require('../db');
+const { localDate, localDateDaysAgo } = require('../lib/time');
 const xcel      = require('../connectors/xcel');
 const emporia   = require('../connectors/emporia');
 const apsystems = require('../connectors/apsystems');
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
   const solarKw   = parseFloat((solarWatts / 1000).toFixed(2));
   const netKw     = parseFloat((currentKw - solarKw).toFixed(2));
 
-  const today       = new Date().toISOString().split('T')[0];
+  const today       = localDate();
   const todayStored = db.prepare('SELECT * FROM daily_totals WHERE date = ?').get(today);
 
   res.json({
@@ -46,9 +47,7 @@ router.get('/', async (req, res) => {
 // GET /api/stats/daily?days=30 — stored daily totals
 router.get('/daily', (req, res) => {
   const days  = parseInt(req.query.days) || 30;
-  const since = new Date();
-  since.setDate(since.getDate() - days);
-  const sinceStr = since.toISOString().split('T')[0];
+  const sinceStr = localDateDaysAgo(days);
   const totals = db.prepare(
     'SELECT * FROM daily_totals WHERE date >= ? ORDER BY date ASC'
   ).all(sinceStr);

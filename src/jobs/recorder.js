@@ -3,6 +3,7 @@
 // Optional ntfy.sh alert when draw exceeds ALERT_KW_THRESHOLD.
 
 const db        = require('../db');
+const { localDate } = require('../lib/time');
 const emporia   = require('../connectors/emporia');
 const apsystems = require('../connectors/apsystems');
 
@@ -14,19 +15,19 @@ const ALERT_COOLDOWN = 30 * 60 * 1000; // don't re-alert within 30 min
 
 const stmtUpsert = db.prepare(`
   INSERT INTO daily_totals (date, emporia_kwh, solar_wh, updated_at)
-  VALUES (?, ?, ?, datetime('now'))
+  VALUES (?, ?, ?, datetime('now', 'localtime'))
   ON CONFLICT(date) DO UPDATE SET
     emporia_kwh = excluded.emporia_kwh,
     solar_wh    = excluded.solar_wh,
-    updated_at  = datetime('now')
+    updated_at  = datetime('now', 'localtime')
 `);
 
 const stmtInsertSnap = db.prepare(
-  'INSERT INTO circuit_snapshots (channel_num, name, kw) VALUES (?, ?, ?)'
+  "INSERT INTO circuit_snapshots (channel_num, name, kw, recorded_at) VALUES (?, ?, ?, datetime('now', 'localtime'))"
 );
 
 const stmtPrune = db.prepare(
-  "DELETE FROM circuit_snapshots WHERE recorded_at < datetime('now', '-30 days')"
+  "DELETE FROM circuit_snapshots WHERE recorded_at < datetime('now', 'localtime', '-30 days')"
 );
 
 const insertSnapshots = db.transaction((circuits) => {
@@ -49,7 +50,7 @@ async function sendAlert(title, body) {
 }
 
 async function poll() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDate();
 
   // --- Circuit snapshot + alert check ---
   try {

@@ -24,7 +24,7 @@ router.get('/averages', (req, res) => {
            ROUND(AVG(kw), 3) AS avg_kw,
            COUNT(*)          AS reading_count
     FROM   circuit_snapshots
-    WHERE  recorded_at >= datetime('now', '-7 days')
+    WHERE  recorded_at >= datetime('now', 'localtime', '-7 days')
     GROUP  BY channel_num
     ORDER  BY avg_kw DESC
   `).all();

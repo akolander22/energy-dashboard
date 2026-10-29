@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
-# build tools needed for better-sqlite3 native bindings
-RUN apk add --no-cache python3 make g++
+# build tools for better-sqlite3 native bindings; tzdata so SQLite 'localtime' honors TZ
+RUN apk add --no-cache python3 make g++ tzdata
 
 WORKDIR /app
 
