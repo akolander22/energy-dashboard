@@ -6,6 +6,8 @@ Node 20 + Express, with history in SQLite.
 - **Live:** current draw per circuit, solar output, net from the grid
 - **History:** daily kWh and solar Wh, 7-day circuit averages
 - **Alerts:** ntfy push when draw goes over `ALERT_KW_THRESHOLD`
+- **Daily summary:** ntfy push at 9 pm with kWh used, solar, net, cost and the top three circuits
+  (`node --env-file=.env scripts/daily-summary.js --dry-run` previews it)
 
 ## Setup
 

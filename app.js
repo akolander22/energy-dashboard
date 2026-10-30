@@ -16,4 +16,5 @@ app.use('/api/solar',    require('./src/routes/solar'));
 app.listen(PORT, () => {
   console.log(`Energy dashboard running on :${PORT}`);
   require('./src/jobs/recorder').startRecorder();
+  require('./src/jobs/dailySummary').startDailySummary();
 });
