@@ -1,13 +1,12 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
+const { localDateDaysAgo } = require('../lib/time');
 
 // GET /api/history?days=14
 router.get('/', (req, res) => {
   const days  = parseInt(req.query.days) || 14;
-  const since = new Date();
-  since.setDate(since.getDate() - days);
-  const sinceStr = since.toISOString().split('T')[0];
+  const sinceStr = localDateDaysAgo(days);
 
   const rows = db.prepare(`
     SELECT date, emporia_kwh AS kwh

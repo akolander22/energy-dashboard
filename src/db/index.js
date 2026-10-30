@@ -11,7 +11,7 @@ db.exec(`
     date        TEXT PRIMARY KEY,
     emporia_kwh REAL,
     solar_wh    REAL,
-    updated_at  TEXT DEFAULT (datetime('now'))
+    updated_at  TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
   CREATE TABLE IF NOT EXISTS circuit_snapshots (
@@ -19,7 +19,7 @@ db.exec(`
     channel_num TEXT NOT NULL,
     name        TEXT NOT NULL,
     kw          REAL NOT NULL,
-    recorded_at TEXT DEFAULT (datetime('now'))
+    recorded_at TEXT DEFAULT (datetime('now', 'localtime'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_snapshot_channel

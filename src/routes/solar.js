@@ -1,6 +1,7 @@
 const express   = require('express');
 const router    = express.Router();
 const db        = require('../db');
+const { localDate } = require('../lib/time');
 const apsystems = require('../connectors/apsystems');
 
 async function safeCall(fn, fallback, label) {
@@ -10,7 +11,7 @@ async function safeCall(fn, fallback, label) {
 
 // GET /api/solar
 router.get('/', async (req, res) => {
-  const today  = new Date().toISOString().split('T')[0];
+  const today  = localDate();
   const liveWh = await safeCall(() => apsystems.fetchTodayWh(), null, 'APSystems-solar');
 
   if (liveWh != null) {

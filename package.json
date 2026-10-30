@@ -1,11 +1,12 @@
 {
   "name": "energy-dashboard",
   "version": "1.0.0",
-  "description": "Home energy monitoring dashboard — Emporia Vue + APSystems solar",
+  "description": "Home energy monitoring dashboard \u2014 Emporia Vue + APSystems solar",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "node --watch app.js"
+    "dev": "node --watch app.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
