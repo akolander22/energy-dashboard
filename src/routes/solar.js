@@ -1,31 +1,25 @@
-const express = require('express');
-const router  = express.Router();
+const express   = require('express');
+const router    = express.Router();
+const db        = require('../db');
+const apsystems = require('../connectors/apsystems');
 
-const apsystems  = require('../connectors/apsystems');
-const DailyTotal = require('../db/models/DailyTotal');
+async function safeCall(fn, fallback, label) {
+  try { return await fn(); }
+  catch (err) { console.warn(`[${label}]`, err.message); return fallback; }
+}
 
-// GET /api/solar — today's production + stored history
+// GET /api/solar
 router.get('/', async (req, res) => {
-  const [today, monthly] = await Promise.all([
-    apsystems.isConfigured()
-      ? apsystems.fetchTodayProduction().catch(() => null)
-      : Promise.resolve(null),
-    apsystems.isConfigured()
-      ? apsystems.fetchMonthlyHistory(3).catch(() => [])
-      : Promise.resolve([]),
-  ]);
+  const today  = new Date().toISOString().split('T')[0];
+  const liveWh = await safeCall(() => apsystems.fetchTodayWh(), null, 'APSystems-solar');
 
-  // Also pull solar_kwh from stored daily totals for trend comparison
-  const stored = await DailyTotal.find({ solar_kwh: { $ne: null } })
-    .sort({ date: -1 })
-    .limit(90)
-    .lean();
+  if (liveWh != null) {
+    return res.json({ today: { totalWh: liveWh } });
+  }
 
-  res.json({
-    today,
-    monthly,
-    stored_history: stored.reverse(),
-  });
+  // Fall back to last stored value for today
+  const stored = db.prepare('SELECT solar_wh FROM daily_totals WHERE date = ?').get(today);
+  res.json({ today: stored?.solar_wh != null ? { totalWh: stored.solar_wh } : null });
 });
 
 module.exports = router;

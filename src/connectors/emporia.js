@@ -1,194 +1,129 @@
-/**
- * EMPORIA VUE CONNECTOR
- * Pulls circuit-level energy data from your Emporia Vue monitor
- * via the unofficial cloud API (emporia-vue-lib).
- *
- * SETUP:
- *   EMPORIA_EMAIL=your@email.com
- *   EMPORIA_PASSWORD=yourpassword
- */
+// Emporia Vue Gen 2 — unofficial API via AWS Cognito auth
+// Refs: https://github.com/magico13/PyEmVue (protocol reference)
 
-let EmporiaVue, Scale, Unit;
-try {
-  ({ EmporiaVue, Scale, Unit } = require('emporia-vue-lib'));
-} catch {
-  // Library not installed
-}
+const COGNITO_URL    = 'https://cognito-idp.us-east-2.amazonaws.com/';
+const COGNITO_CLIENT = '4qte47jbstod8apnfic0bunmrq';
+const EMPORIA_API    = 'https://api.emporiaenergy.com';
 
-const EMAIL      = process.env.EMPORIA_EMAIL    || null;
-const PASSWORD   = process.env.EMPORIA_PASSWORD || null;
-const TOKEN_FILE = process.env.EMPORIA_TOKEN_FILE || './emporia_tokens.json';
+const EMAIL    = process.env.EMPORIA_EMAIL;
+const PASSWORD = process.env.EMPORIA_PASSWORD;
 
-let _client      = null;
-let _loginPromise = null; // singleton — prevents concurrent login races
-let _devices     = null;
-
-let _cache = { circuits: [], totalKw: null, ts: 0 };
-const CACHE_TTL_MS = 60_000;
-
-async function getClient() {
-  if (_client) return _client;
-
-  // If login is already in progress, wait for that same promise
-  if (_loginPromise) return _loginPromise;
-
-  if (!EmporiaVue) throw new Error('emporia-vue-lib not installed');
-  if (!EMAIL || !PASSWORD) throw new Error('EMPORIA_EMAIL / EMPORIA_PASSWORD not set in .env');
-
-  _loginPromise = (async () => {
-    console.log('[Emporia] Logging in...');
-    const vue = new EmporiaVue();
-    await vue.login({ username: EMAIL, password: PASSWORD, tokenStorageFile: TOKEN_FILE });
-    _client = vue;
-    return _client;
-  })();
-
-  try {
-    return await _loginPromise;
-  } catch (err) {
-    _loginPromise = null; // reset so next call retries
-    throw err;
-  }
-}
-
-async function getDevices() {
-  if (_devices) return _devices;
-  const client = await getClient();
-  _devices = await client.getDevices();
-  return _devices;
-}
-
-async function fetchCircuitUsage() {
-  const now = Date.now();
-  if (_cache.totalKw !== null && now - _cache.ts < CACHE_TTL_MS) return _cache;
-
-  const client  = await getClient();
-  const devices = await getDevices();
-  const deviceGids = devices.map(d => d.deviceGid.toString());
-
-  const usageData = await client.getDeviceListUsage(
-    deviceGids,
-    undefined,
-    Scale.MINUTE,
-    Unit.KWH
-  );
-
-  for (const [deviceGid, device] of Object.entries(usageData)) {
-    console.log(`Device ${deviceGid} (${device.name}):`);
-    for (const [channelNum, channel] of Object.entries(device.deviceUsages)) {
-      console.log(`Device ${deviceGid}, Channel ${channelNum}: ${channel.usage} kWh`);
-    }
-  }
-
-  console.log('[Emporia] Raw usage data:', usageData[channelUsages]);
-
-  const circuits = [];
-  let totalKw = 0;
-
-  for (const [, device] of Object.entries(usageData)) {
-    for (const [channelNum, channel] of Object.entries(device.channels)) {
-      const kw = parseFloat(((channel.usage || 0) * 60).toFixed(3));
-      console.log(`Device ${device.deviceGid} Channel ${channelNum} (${channel.name}): ${kw} kW`);
-      if (channelNum === '1,2,3') {
-        totalKw = kw;
-        circuits.unshift({ name: channel.name || 'Main', kw, channelNum, isMain: true });
-      } else if (channel.usage > 0) {
-        circuits.push({ name: channel.name || `Circuit ${channelNum}`, kw, channelNum, isMain: false });
-      }
-    }
-  }
-
-  console.log('[Emporia] Fetched circuit usage:', circuits, 'Total kW:', totalKw);
-
-  const [main, ...rest] = circuits;
-  const sorted = [main, ...rest.sort((a, b) => b.kw - a.kw)].filter(Boolean);
-
-  _cache = { circuits: sorted, totalKw, ts: now };
-  return _cache;
-}
-
-async function fetchHourlyToday() {
-  const client  = await getClient();
-  const devices = await getDevices();
-
-  if (!devices.length) return [];
-
-  const mainChannel = devices[0].channels?.find(c => c.channelNum === '1,2,3') || devices[0].channels?.[0];
-  if (!mainChannel) return [];
-
-  const now   = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-
-  // const usageOverTime = await client.getUsageOverTime(mainChannel, start, now, Scale.HOUR, Unit.KWH);
-
-  // return (usageOverTime || []).map((kwh, i) => ({
-  //   hour: i,
-  //   label: `${String(i).padStart(2, '0')}:00`,
-  //   kwh: parseFloat((kwh || 0).toFixed(2)),
-  // }));
-    const deviceGids = devices.map(d => d.deviceGid.toString());
-  const usageData = await client.getDeviceListUsage(
-    deviceGids,
-    undefined, // current time
-    Scale.MINUTE,
-    Unit.KWH
-  );
-  return (usageData || []).map((kwh, i) => ({
-    hour: i,
-    label: `${String(i).padStart(2, '0')}:00`,
-    kwh: parseFloat((kwh || 0).toFixed(2)),
-  }));
-}
-
-async function fetchDailyHistory(days = 30) {
-  const client  = await getClient();
-  const devices = await getDevices();
-  if (!devices.length) return [];
-
-  const mainChannel = devices[0].channels?.find(c => c.channelNum === '1,2,3') || devices[0].channels?.[0];
-  if (!mainChannel) return [];
-
-  const now   = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - days);
-
-  // const usageOverTime = await client.getUsageOverTime(mainChannel, start, now, Scale.DAY, Unit.KWH);
-
-  // return (usageOverTime || []).map((kwh, i) => {
-  //   const d = new Date(start);
-  //   d.setDate(d.getDate() + i);
-  //   return {
-  //     date: d.toISOString().split('T')[0],
-  //     kwh: parseFloat((kwh || 0).toFixed(1)),
-  //   };
-  // });
-      const deviceGids = devices.map(d => d.deviceGid.toString());
-  const usageData = await client.getDeviceListUsage(
-    deviceGids,
-    undefined, // current time
-    Scale.MINUTE,
-    Unit.KWH
-  );
-  //console.log(usageData);
-
-    for (const [gid, device] of Object.entries(usageData)) {
-      for (const [channelNum, channel] of Object.entries(device.channels)) {
-        console.log(`${gid} ${channelNum} ${channel.name} ${channel.usage} kwh`);
-      }
-    }
-  // return(usageData || []).map((kwh, i) => {
-  //   const d = new Date(start);
-  //   d.setDate(d.getDate() + i);
-  //   return {
-  //     date: d.toISOString().split('T')[0],
-  //     kwh: parseFloat((kwh || 0).toFixed(1)),
-  //   };
-  // });
-}
+let idToken    = null;
+let tokenExpiry = 0;
+let deviceGid  = null;
 
 function isConfigured() {
-  return !!EmporiaVue && !!EMAIL && !!PASSWORD;
+  return !!(EMAIL && PASSWORD);
 }
 
-module.exports = { fetchCircuitUsage, fetchHourlyToday, fetchDailyHistory, isConfigured };
+async function authenticate() {
+  const res = await fetch(COGNITO_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/x-amz-json-1.1',
+      'X-Amz-Target':  'AWSCognitoIdentityProviderService.InitiateAuth',
+    },
+    body: JSON.stringify({
+      AuthFlow:        'USER_PASSWORD_AUTH',
+      ClientId:        COGNITO_CLIENT,
+      AuthParameters:  { USERNAME: EMAIL, PASSWORD },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Emporia auth failed: ${data.message || res.status}`);
+  idToken     = data.AuthenticationResult.IdToken;
+  tokenExpiry = Date.now() + (data.AuthenticationResult.ExpiresIn - 60) * 1000;
+}
+
+async function getToken() {
+  if (!idToken || Date.now() >= tokenExpiry) await authenticate();
+  return idToken;
+}
+
+async function getDeviceGid() {
+  if (deviceGid) return deviceGid;
+  const tok = await getToken();
+  const res = await fetch(`${EMPORIA_API}/customers?email=${encodeURIComponent(EMAIL)}`, {
+    headers: { authtoken: tok },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Emporia customers failed: ${res.status}`);
+  deviceGid = data.devices?.[0]?.deviceGid;
+  if (!deviceGid) throw new Error('No Emporia devices found for account');
+  return deviceGid;
+}
+
+// 10-second cache — stats and circuits routes both call this on the same request cycle
+let usageCache    = null;
+let usageCacheAt  = 0;
+
+async function getInstantUsage() {
+  if (usageCache && Date.now() - usageCacheAt < 10_000) return usageCache;
+
+  const [tok, gid] = await Promise.all([getToken(), getDeviceGid()]);
+  const instant    = new Date().toISOString();
+  const url        = `${EMPORIA_API}/AppAPI?apiMethod=getDeviceListUsages` +
+                     `&deviceGids=${gid}&instant=${encodeURIComponent(instant)}` +
+                     `&scale=1S&energyUnit=KilowattHours`;
+
+  const res  = await fetch(url, { headers: { authtoken: tok } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Emporia usage failed: ${res.status}`);
+
+  const channels = data.deviceListUsages?.devices?.[0]?.channelUsages ?? [];
+
+  const circuits = channels.map(ch => ({
+    channelNum: ch.channelNum,
+    name:       ch.name,
+    // usage is kWh for a 1-second window; *3600 converts to kW
+    kw:         parseFloat(((ch.usage ?? 0) * 3600).toFixed(3)),
+    isMain:     ch.channelNum === '1,2,3',
+  }));
+
+  const main    = circuits.find(c => c.isMain);
+  const subs    = circuits.filter(c => !c.isMain);
+  const subSum  = subs.reduce((s, c) => s + c.kw, 0);
+  const balance = parseFloat(((main?.kw ?? 0) - subSum).toFixed(3));
+
+  const live = [
+    ...(main ? [main] : []),
+    ...subs.sort((a, b) => b.kw - a.kw),
+    ...(main ? [{ channelNum: 'Balance', name: 'Unmonitored', kw: balance, isBalance: true }] : []),
+  ];
+
+  usageCache = {
+    totalKw:  main?.kw ?? 0,
+    circuits: live,
+    summary:  {
+      total_kw:      main?.kw ?? 0,
+      monitored_pct: main?.kw
+        ? parseFloat(((subSum / main.kw) * 100).toFixed(1))
+        : 0,
+    },
+  };
+  usageCacheAt = Date.now();
+  return usageCache;
+}
+
+// Returns today's total kWh from the Main (1,2,3) channel
+async function getDailyKwh() {
+  const [tok, gid] = await Promise.all([getToken(), getDeviceGid()]);
+  const now        = new Date();
+  // Use end-of-day instant so the 1D bucket covers the full day so far
+  const instant    = new Date(
+    now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59
+  ).toISOString();
+  const url = `${EMPORIA_API}/AppAPI?apiMethod=getDeviceListUsages` +
+              `&deviceGids=${gid}&instant=${encodeURIComponent(instant)}` +
+              `&scale=1D&energyUnit=KilowattHours`;
+
+  const res  = await fetch(url, { headers: { authtoken: tok } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Emporia daily failed: ${res.status}`);
+
+  const channels = data.deviceListUsages?.devices?.[0]?.channelUsages ?? [];
+  const main     = channels.find(ch => ch.channelNum === '1,2,3');
+  return main?.usage ?? null;
+}
+
+module.exports = { isConfigured, getInstantUsage, getDailyKwh };

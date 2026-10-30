@@ -4,24 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KOLANDER // ENERGY</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;600;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg:       #0b0d0f;
-      --surface:  #111417;
-      --border:   #1e2328;
-      --border2:  #262c33;
-      --text:     #c8d0d8;
-      --dim:      #5a6470;
-      --accent:   #e8b44a;
-      --accent2:  #4ab8e8;
-      --danger:   #e8604a;
-      --good:     #4ae8a0;
+      --bg:       #09090b;
+      --surface:  #111114;
+      --surface2: #18181c;
+      --border:   #222228;
+      --border2:  #2e2e38;
+      --text:     #c9cdd6;
+      --dim:      #52566b;
+      --accent:   #f0c040;
+      --blue:     #4ab4e8;
+      --green:    #3de89a;
+      --red:      #e85050;
+      --orange:   #e88a30;
       --mono:     'Share Tech Mono', monospace;
-      --sans:     'Barlow', sans-serif;
       --cond:     'Barlow Condensed', sans-serif;
+      --sans:     'Barlow', sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,248 +31,212 @@
       background: var(--bg);
       color: var(--text);
       font-family: var(--sans);
+      font-weight: 300;
       min-height: 100vh;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
       background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 39px, var(--border) 39px, var(--border) 40px),
-        repeating-linear-gradient(90deg, transparent, transparent 39px, var(--border) 39px, var(--border) 40px);
-      background-size: 40px 40px;
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.4;
+      pointer-events: none;
+      z-index: 0;
     }
 
     .shell {
-      max-width: 1280px;
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 0 24px 48px;
+      padding: 0 28px 60px;
     }
 
-    /* ---- HEADER ---- */
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 28px 0 24px;
+      padding: 32px 0 28px;
       border-bottom: 1px solid var(--border2);
-      margin-bottom: 32px;
+      margin-bottom: 36px;
     }
 
     .logo {
       font-family: var(--cond);
-      font-size: 22px;
       font-weight: 800;
-      letter-spacing: 0.12em;
+      font-size: 20px;
+      letter-spacing: 0.18em;
       color: var(--accent);
       text-transform: uppercase;
     }
-    .logo span { color: var(--dim); font-weight: 300; }
+    .logo em { color: var(--dim); font-style: normal; font-weight: 300; }
 
-    .live-pill {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--good);
-      letter-spacing: 0.08em;
-    }
-    .live-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--good);
-      box-shadow: 0 0 6px var(--good);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
+    .header-right { display: flex; align-items: center; gap: 28px; }
 
-    .clock {
+    .status-pills { display: flex; gap: 8px; }
+
+    .pill {
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      padding: 4px 9px;
+      border: 1px solid var(--border2);
       color: var(--dim);
+      text-transform: uppercase;
     }
+    .pill.live { border-color: var(--green); color: var(--green); }
+    .pill.live::before { content: '● '; animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
-    /* ---- STAT CARDS ---- */
-    .stats-row {
+    .clock { font-family: var(--mono); font-size: 13px; color: var(--dim); letter-spacing: 0.05em; }
+
+    .summary-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 28px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      margin-bottom: 2px;
     }
 
-    .card {
+    .stat-card {
       background: var(--surface);
       border: 1px solid var(--border2);
-      padding: 20px 22px;
+      padding: 24px 26px 20px;
       position: relative;
       overflow: hidden;
     }
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0;
-      width: 3px; height: 100%;
-      background: var(--border2);
-    }
-    .card.accent::before { background: var(--accent); }
-    .card.blue::before   { background: var(--accent2); }
-    .card.good::before   { background: var(--good); }
-    .card.danger::before { background: var(--danger); }
 
-    .card-label {
+    .stat-card .bar { position: absolute; top: 0; left: 0; width: 100%; height: 2px; }
+    .stat-card.yellow .bar { background: var(--accent); }
+    .stat-card.blue   .bar { background: var(--blue); }
+    .stat-card.green  .bar { background: var(--green); }
+    .stat-card.orange .bar { background: var(--orange); }
+
+    .stat-label {
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.12em;
+      font-size: 9px;
+      letter-spacing: 0.14em;
       color: var(--dim);
       text-transform: uppercase;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
-    .card-value {
+    .stat-value {
       font-family: var(--cond);
-      font-size: 42px;
-      font-weight: 700;
+      font-weight: 600;
+      font-size: 48px;
       line-height: 1;
       letter-spacing: -0.01em;
     }
-    .card-value .unit {
-      font-size: 16px;
-      font-weight: 400;
-      color: var(--dim);
-      margin-left: 3px;
-      letter-spacing: 0;
-    }
+    .stat-value .unit { font-size: 18px; font-weight: 300; color: var(--dim); margin-left: 4px; }
 
-    .card-sub {
-      font-size: 12px;
-      color: var(--dim);
-      margin-top: 6px;
-    }
+    .stat-sub { margin-top: 8px; font-size: 12px; color: var(--dim); font-family: var(--mono); }
 
-    /* ---- CHARTS ---- */
-    .charts-grid {
+    .main-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
+      grid-template-columns: 1fr 380px;
+      gap: 2px;
+      margin-top: 2px;
     }
 
-    @media (max-width: 760px) {
-      .charts-grid { grid-template-columns: 1fr; }
-    }
-
-    .chart-panel {
+    .panel {
       background: var(--surface);
       border: 1px solid var(--border2);
-      padding: 22px 22px 18px;
-    }
-
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 18px;
+      padding: 24px;
     }
 
     .panel-title {
       font-family: var(--cond);
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--text);
-    }
-
-    .panel-meta {
-      font-family: var(--mono);
-      font-size: 10px;
       color: var(--dim);
-    }
-
-    .chart-wrap {
-      position: relative;
-      height: 220px;
-    }
-
-    /* ---- COST TABLE ---- */
-    .cost-panel {
-      background: var(--surface);
-      border: 1px solid var(--border2);
-      padding: 22px;
-      margin-bottom: 16px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    thead th {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.1em;
-      color: var(--dim);
-      text-transform: uppercase;
-      text-align: left;
-      padding: 0 0 12px;
-      border-bottom: 1px solid var(--border2);
-    }
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-    }
-    tbody tr:last-child { border-bottom: none; }
-    tbody td {
-      padding: 11px 0;
-      color: var(--text);
-    }
-    tbody td.num {
-      font-family: var(--mono);
-      font-size: 13px;
-    }
-    tbody td.highlight { color: var(--accent); font-weight: 600; }
-
-    /* ---- FOOTER ---- */
-    footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid var(--border);
-      font-family: var(--mono);
-      font-size: 10px;
-      color: var(--dim);
-      letter-spacing: 0.06em;
+      margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
     }
+    .panel-title span { font-family: var(--mono); font-size: 10px; font-weight: 400; }
 
-    .loading {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--dim);
-      letter-spacing: 0.08em;
-      padding: 40px 0;
-      text-align: center;
+    .circuit-list { display: flex; flex-direction: column; gap: 0; }
+
+    .circuit-row {
+      display: grid;
+      grid-template-columns: 160px 1fr 64px;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
     }
+    .circuit-row:last-child { border-bottom: none; }
+    .circuit-row.is-main { border-bottom: 1px solid var(--border2); margin-bottom: 4px; padding-bottom: 12px; }
+    .circuit-row.is-balance { border-top: 1px solid var(--border2); margin-top: 4px; padding-top: 12px; border-bottom: none; }
 
-    /* ---- RANGE TABS ---- */
-    .tabs {
-      display: flex;
+    .circuit-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .circuit-row.is-main .circuit-name { color: var(--accent); font-weight: 500; }
+    .circuit-row.is-balance .circuit-name { color: var(--orange); }
+
+    .circuit-bar-wrap { height: 3px; background: var(--border2); }
+    .circuit-bar { height: 100%; background: var(--blue); transition: width 0.6s ease; }
+    .circuit-row.is-main .circuit-bar { background: var(--accent); }
+    .circuit-row.is-balance .circuit-bar { background: var(--orange); }
+
+    .circuit-kw { font-family: var(--mono); font-size: 11px; text-align: right; }
+    .circuit-row.is-main .circuit-kw { color: var(--accent); }
+    .circuit-row.is-balance .circuit-kw { color: var(--orange); }
+
+    .chart-wrap { position: relative; height: 180px; }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 2px;
+      margin-top: 2px;
     }
-    .tab {
+
+    .source-block { background: var(--surface); border: 1px solid var(--border2); padding: 20px 24px; }
+
+    .source-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; margin-bottom: 8px; }
+
+    .source-value { font-family: var(--cond); font-size: 32px; font-weight: 600; }
+    .source-value .unit { font-size: 14px; font-weight: 300; color: var(--dim); margin-left: 3px; }
+
+    .source-sub { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 4px; }
+
+    .avg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .avg-table thead th {
+      font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+      color: var(--dim); text-transform: uppercase; text-align: left;
+      padding: 0 0 10px; border-bottom: 1px solid var(--border2);
+    }
+    .avg-table thead th:not(:first-child) { text-align: right; }
+    .avg-table tbody tr { border-bottom: 1px solid var(--border); }
+    .avg-table tbody tr:last-child { border-bottom: none; }
+    .avg-table tbody td { padding: 8px 0; }
+    .avg-table tbody td.num { font-family: var(--mono); font-size: 11px; text-align: right; }
+    .avg-table tbody td.readings { font-family: var(--mono); font-size: 10px; color: var(--dim); text-align: right; }
+    .avg-table .balance-row td { color: var(--orange); }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
       font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 4px 10px;
-      border: 1px solid var(--border2);
-      background: transparent;
+      font-size: 9px;
       color: var(--dim);
-      cursor: pointer;
-      transition: all 0.15s;
+      letter-spacing: 0.08em;
     }
-    .tab.active, .tab:hover {
-      background: var(--accent);
-      color: var(--bg);
-      border-color: var(--accent);
+
+    @media (max-width: 900px) {
+      .summary-row { grid-template-columns: 1fr 1fr; }
+      .main-grid { grid-template-columns: 1fr; }
+      .comparison-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -279,56 +244,82 @@
 <div class="shell">
 
   <header>
-    <div class="logo">KOLANDER <span>//</span> ENERGY</div>
-    <div style="display:flex;align-items:center;gap:24px;">
-      <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+    <div class="logo">KOLANDER <em>//</em> ENERGY</div>
+    <div class="header-right">
+      <div class="status-pills" id="status-pills"><div class="pill">LOADING</div></div>
       <div class="clock" id="clock">--:--:--</div>
     </div>
   </header>
 
-  <div class="stats-row" id="stats-row">
-    <div class="loading">FETCHING DATA...</div>
+  <div class="summary-row">
+    <div class="stat-card yellow"><div class="bar"></div>
+      <div class="stat-label">Total Draw</div>
+      <div class="stat-value" id="s-total">--<span class="unit">kW</span></div>
+      <div class="stat-sub" id="s-total-sub">live</div>
+    </div>
+    <div class="stat-card green"><div class="bar"></div>
+      <div class="stat-label">Solar Output</div>
+      <div class="stat-value" id="s-solar">--<span class="unit">kW</span></div>
+      <div class="stat-sub" id="s-solar-sub">live</div>
+    </div>
+    <div class="stat-card blue"><div class="bar"></div>
+      <div class="stat-label">Net Grid Draw</div>
+      <div class="stat-value" id="s-net">--<span class="unit">kW</span></div>
+      <div class="stat-sub">total − solar</div>
+    </div>
+    <div class="stat-card orange"><div class="bar"></div>
+      <div class="stat-label">Unmonitored</div>
+      <div class="stat-value" id="s-balance">--<span class="unit">kW</span></div>
+      <div class="stat-sub" id="s-coverage">balance channel</div>
+    </div>
   </div>
 
-  <div class="charts-grid">
-    <div class="chart-panel">
-      <div class="panel-header">
-        <div class="panel-title">Today — Hourly kW</div>
-        <div class="panel-meta" id="today-date">--</div>
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-title">
+        Live Circuit Breakdown
+        <span id="circuit-updated">--</span>
       </div>
-      <div class="chart-wrap"><canvas id="hourlyChart"></canvas></div>
+      <div class="circuit-list" id="circuit-list">
+        <div style="color:var(--dim);font-family:var(--mono);font-size:11px;padding:12px 0;">Loading...</div>
+      </div>
     </div>
 
-    <div class="chart-panel">
-      <div class="panel-header">
-        <div class="panel-title">Daily kWh History</div>
-        <div class="tabs">
-          <button class="tab active" onclick="loadHistory(7, this)">7D</button>
-          <button class="tab" onclick="loadHistory(30, this)">30D</button>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <div class="panel">
+        <div class="panel-title">
+          Daily kWh — 14 Days
+          <span id="history-avg">--</span>
         </div>
+        <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
       </div>
-      <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+
+      <div class="panel" style="flex:1;">
+        <div class="panel-title">
+          Circuit Averages
+          <span id="coverage-pct">--</span>
+        </div>
+        <table class="avg-table">
+          <thead><tr><th>Circuit</th><th>Avg kW</th><th>Readings</th></tr></thead>
+          <tbody id="avg-tbody">
+            <tr><td colspan="3" style="color:var(--dim);font-family:var(--mono);font-size:11px;padding:12px 0;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <div class="cost-panel">
-    <div class="panel-header">
-      <div class="panel-title">Cost Breakdown</div>
-      <div class="panel-meta" id="rate-note">--</div>
+  <div class="comparison-grid">
+    <div class="source-block">
+      <div class="source-label">Emporia — Today Total</div>
+      <div class="source-value" id="emp-today">--<span class="unit">kWh</span></div>
+      <div class="source-sub" id="emp-cost">collecting data...</div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Period</th>
-          <th>Usage (kWh)</th>
-          <th>Cost</th>
-          <th>vs Avg</th>
-        </tr>
-      </thead>
-      <tbody id="cost-tbody">
-        <tr><td colspan="4" class="loading">--</td></tr>
-      </tbody>
-    </table>
+    <div class="source-block">
+      <div class="source-label">Solar — Today Production</div>
+      <div class="source-value" id="sol-today">--<span class="unit">kWh</span></div>
+      <div class="source-sub" id="sol-sub">--</div>
+    </div>
   </div>
 
   <footer>
@@ -337,187 +328,143 @@
   </footer>
 
 </div>
-
 <script>
-  // ---- Clock ----
-  function tick() {
-    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
-  }
-  tick(); setInterval(tick, 1000);
+  // Clock
+  setInterval(() => {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('en-US', { hour12: false });
+  }, 1000);
 
-  // ---- Chart defaults ----
-  Chart.defaults.color = '#5a6470';
-  Chart.defaults.borderColor = '#1e2328';
+  Chart.defaults.color = '#52566b';
+  Chart.defaults.borderColor = '#222228';
   Chart.defaults.font.family = "'Share Tech Mono', monospace";
-  Chart.defaults.font.size = 11;
+  Chart.defaults.font.size = 10;
 
-  let hourlyChart = null;
   let historyChart = null;
 
-  // ---- Stats ----
+  const get = url => fetch(url).then(r => r.json());
+
+  function kw(v)   { return `${(+v).toFixed(2)}<span class="unit">kW</span>`; }
+  function kwh(v)  { return `${(+v).toFixed(2)}<span class="unit">kWh</span>`; }
+
+  async function loadStatus() {
+    try {
+      const s = await get('/api/stats/status');
+      document.getElementById('status-pills').innerHTML =
+        Object.entries(s).map(([k, v]) =>
+          `<div class="pill ${v.configured ? 'live' : ''}">${k.toUpperCase()}</div>`
+        ).join('');
+    } catch {}
+  }
+
   async function loadStats() {
-    const res = await fetch('/api/stats');
-    const d = await res.json();
+    try {
+      const [stats, circuits] = await Promise.all([get('/api/stats'), get('/api/circuits')]);
+      const totalKw   = circuits.summary?.total_kw ?? stats.currentKw ?? 0;
+      const solarKw   = stats.solarKw ?? 0;
+      const netKw     = parseFloat((totalKw - solarKw).toFixed(2));
+      const balanceKw = circuits.live?.find(c => c.isBalance)?.kw ?? 0;
 
-    document.getElementById('stats-row').innerHTML = `
-      <div class="card accent">
-        <div class="card-label">Current Draw</div>
-        <div class="card-value">${d.currentKw}<span class="unit">kW</span></div>
-        <div class="card-sub">Live reading</div>
-      </div>
-      <div class="card blue">
-        <div class="card-label">Today Usage</div>
-        <div class="card-value">${d.todayKwh}<span class="unit">kWh</span></div>
-        <div class="card-sub">$${d.todayCost.toFixed(2)} today</div>
-      </div>
-      <div class="card good">
-        <div class="card-label">This Month</div>
-        <div class="card-value">${d.monthKwh}<span class="unit">kWh</span></div>
-        <div class="card-sub">$${d.monthCost.toFixed(2)} so far</div>
-      </div>
-      <div class="card danger">
-        <div class="card-label">Projected Month</div>
-        <div class="card-value">${d.projectedMonthKwh}<span class="unit">kWh</span></div>
-        <div class="card-sub">~$${d.projectedMonthCost.toFixed(2)} est.</div>
-      </div>
-    `;
+      document.getElementById('s-total').innerHTML   = kw(totalKw);
+      document.getElementById('s-solar').innerHTML   = kw(solarKw);
+      document.getElementById('s-net').innerHTML     = kw(netKw);
+      document.getElementById('s-balance').innerHTML = `${balanceKw.toFixed(3)}<span class="unit">kW</span>`;
 
-    document.getElementById('rate-note').textContent = `@ $${d.ratePerKwh}/kWh`;
+      document.getElementById('s-total-sub').textContent   = `$${(totalKw * stats.ratePerKwh).toFixed(3)}/hr est.`;
+      document.getElementById('s-solar-sub').textContent   = solarKw > 0 ? 'producing' : 'offline / night';
+      document.getElementById('s-coverage').textContent    = `${circuits.summary?.monitored_pct ?? '--'}% monitored`;
 
-    document.getElementById('cost-tbody').innerHTML = `
-      <tr>
-        <td>Today</td>
-        <td class="num">${d.todayKwh}</td>
-        <td class="num highlight">$${d.todayCost.toFixed(2)}</td>
-        <td class="num" style="color:var(--dim)">—</td>
-      </tr>
-      <tr>
-        <td>Daily Average (30d)</td>
-        <td class="num">${d.avgDailyKwh}</td>
-        <td class="num">$${(d.avgDailyKwh * d.ratePerKwh).toFixed(2)}</td>
-        <td class="num" style="color:var(--dim)">baseline</td>
-      </tr>
-      <tr>
-        <td>This Month (so far)</td>
-        <td class="num">${d.monthKwh}</td>
-        <td class="num highlight">$${d.monthCost.toFixed(2)}</td>
-        <td class="num" style="color:var(--accent2)">—</td>
-      </tr>
-      <tr>
-        <td>Projected Month</td>
-        <td class="num">${d.projectedMonthKwh}</td>
-        <td class="num highlight">$${d.projectedMonthCost.toFixed(2)}</td>
-        <td class="num" style="color:var(--dim)">est.</td>
-      </tr>
-    `;
+      document.getElementById('emp-today').innerHTML = stats.todayKwh != null ? kwh(stats.todayKwh) : `--<span class="unit">kWh</span>`;
+      document.getElementById('emp-cost').textContent = stats.todayCost != null ? `$${stats.todayCost} today` : 'collecting...';
 
-    document.getElementById('last-refresh').textContent =
-      'LAST REFRESH: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+      document.getElementById('last-refresh').textContent =
+        'LAST REFRESH: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+    } catch(e) { console.error('stats', e); }
   }
 
-  // ---- Hourly Chart ----
-  async function loadHourly() {
-    const res = await fetch('/api/hourly');
-    const data = await res.json();
+  async function loadCircuits() {
+    try {
+      const data = await get('/api/circuits');
+      if (!data.live) return;
+      const maxKw = data.live.find(c => c.isMain)?.kw || 1;
+      document.getElementById('circuit-updated').textContent =
+        new Date().toLocaleTimeString('en-US', { hour12: false });
+      document.getElementById('circuit-list').innerHTML = data.live.map(c => `
+        <div class="circuit-row ${c.isMain?'is-main':''} ${c.isBalance?'is-balance':''}">
+          <div class="circuit-name">${c.name}</div>
+          <div class="circuit-bar-wrap">
+            <div class="circuit-bar" style="width:${Math.min(100,(c.kw/maxKw)*100).toFixed(1)}%"></div>
+          </div>
+          <div class="circuit-kw">${c.kw.toFixed(3)}</div>
+        </div>`).join('');
+    } catch(e) { console.error('circuits', e); }
+  }
 
-    const labels = data.map(h => h.label);
-    const values = data.map(h => h.kw);
-
-    document.getElementById('today-date').textContent =
-      new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-    if (hourlyChart) hourlyChart.destroy();
-    hourlyChart = new Chart(document.getElementById('hourlyChart'), {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'kW',
+  async function loadHistory() {
+    try {
+      const data = await get('/api/history?days=14');
+      if (!data.length) return;
+      const labels = data.map(d => { const [,m,dd] = d.date.split('-'); return `${m}/${dd}`; });
+      const values = data.map(d => d.kwh);
+      const avg    = values.reduce((a,b)=>a+b,0)/values.length;
+      document.getElementById('history-avg').textContent = `avg ${avg.toFixed(1)} kWh`;
+      if (historyChart) historyChart.destroy();
+      historyChart = new Chart(document.getElementById('historyChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{
           data: values,
-          backgroundColor: values.map(v => v > 3 ? 'rgba(232,96,74,0.7)' : 'rgba(232,180,74,0.6)'),
-          borderColor:     values.map(v => v > 3 ? '#e8604a' : '#e8b44a'),
-          borderWidth: 1,
-          borderRadius: 2,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { color: '#1a1e23' } },
-          y: { grid: { color: '#1a1e23' }, beginAtZero: true,
-               ticks: { callback: v => v + ' kW' } }
-        }
-      }
-    });
-  }
-
-  // ---- History Chart ----
-  async function loadHistory(days = 30, btn = null) {
-    if (btn) {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      btn.classList.add('active');
-    }
-
-    const res = await fetch(`/api/history?days=${days}`);
-    const data = await res.json();
-
-    const labels = data.map(d => {
-      const [,m,dd] = d.date.split('-');
-      return `${m}/${dd}`;
-    });
-    const values = data.map(d => d.kwh);
-    const avg = values.reduce((a,b) => a+b, 0) / values.length;
-
-    if (historyChart) historyChart.destroy();
-    historyChart = new Chart(document.getElementById('historyChart'), {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'kWh',
-            data: values,
-            borderColor: '#4ab8e8',
-            backgroundColor: 'rgba(74,184,232,0.08)',
-            borderWidth: 2,
-            pointRadius: days <= 7 ? 4 : 2,
-            pointBackgroundColor: '#4ab8e8',
-            tension: 0.3,
-            fill: true,
-          },
-          {
-            label: 'Avg',
-            data: values.map(() => parseFloat(avg.toFixed(1))),
-            borderColor: 'rgba(232,180,74,0.4)',
-            borderWidth: 1,
-            borderDash: [4, 4],
-            pointRadius: 0,
-            fill: false,
+          backgroundColor: values.map(v => v>avg*1.15?'rgba(232,80,80,0.5)':v<avg*0.85?'rgba(61,232,154,0.5)':'rgba(74,180,232,0.4)'),
+          borderColor:     values.map(v => v>avg*1.15?'#e85050':v<avg*0.85?'#3de89a':'#4ab4e8'),
+          borderWidth: 1, borderRadius: 2,
+        }]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: '#1a1a20' } },
+            y: { grid: { color: '#1a1a20' }, beginAtZero: false, ticks: { callback: v => v+' kWh' } }
           }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { color: '#1a1e23' },
-               ticks: { maxTicksLimit: days <= 7 ? 7 : 10 } },
-          y: { grid: { color: '#1a1e23' }, beginAtZero: false,
-               ticks: { callback: v => v + ' kWh' } }
         }
-      }
-    });
+      });
+    } catch(e) { console.error('history', e); }
   }
 
-  // ---- Init ----
+  async function loadAverages() {
+    try {
+      const data = await get('/api/circuits/averages');
+      const circuits = data.circuits?.filter(c => c.channel_num !== '1,2,3') || [];
+      document.getElementById('coverage-pct').textContent =
+        data.main_avg_kw && data.total_monitored_avg_kw
+          ? `${((data.total_monitored_avg_kw/data.main_avg_kw)*100).toFixed(1)}% covered`
+          : '-- covered';
+      document.getElementById('avg-tbody').innerHTML = circuits.map(c => `
+        <tr class="${c.channel_num==='Balance'?'balance-row':''}">
+          <td>${c.name}</td>
+          <td class="num">${c.avg_kw?.toFixed(3)??'--'}</td>
+          <td class="readings">${c.reading_count??'--'}</td>
+        </tr>`).join('');
+    } catch(e) { console.error('averages', e); }
+  }
+
+  async function loadSolar() {
+    try {
+      const data = await get('/api/solar');
+      const todayKwh = data.today?.totalWh != null ? (data.today.totalWh/1000).toFixed(2) : null;
+      document.getElementById('sol-today').innerHTML = todayKwh ? kwh(todayKwh) : `--<span class="unit">kWh</span>`;
+      document.getElementById('sol-sub').textContent = todayKwh ? 'produced today' : 'add APSYSTEMS_ECU_ID to .env';
+    } catch(e) { console.error('solar', e); }
+  }
+
   async function init() {
-    await Promise.all([loadStats(), loadHourly(), loadHistory(30)]);
+    await Promise.all([loadStatus(), loadStats(), loadCircuits(), loadHistory(), loadAverages(), loadSolar()]);
   }
 
   init();
-  setInterval(loadStats, 30000);   // refresh stats every 30s
-  setInterval(loadHourly, 60000);  // refresh hourly chart every 60s
+  setInterval(loadStats,    30_000);
+  setInterval(loadCircuits, 30_000);
+  setInterval(loadAverages, 60_000);
+  setInterval(loadSolar,   300_000);
+  setInterval(loadHistory, 300_000);
 </script>
 </body>
 </html>

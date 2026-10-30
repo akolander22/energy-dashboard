@@ -1,17 +1,17 @@
 {
   "name": "energy-dashboard",
-  "version": "2.1.0",
-  "description": "Home energy monitoring dashboard — Xcel + Emporia + APSystems + MongoDB",
-  "main": "src/server.js",
+  "version": "1.0.0",
+  "description": "Home energy monitoring dashboard — Emporia Vue + APSystems solar",
+  "main": "app.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node src/server.js",
-    "setup:xcel": "bash scripts/generate_xcel_certs.sh"
+    "start": "node app.js",
+    "dev": "node --watch app.js"
   },
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "emporia-vue-lib": "^1.0.0",
-    "express": "^4.18.2",
-    "mongoose": "^8.3.0"
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
